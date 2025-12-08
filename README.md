@@ -74,6 +74,38 @@ Any agent with:
 
 ## 🧠 How Harimu Works
 
+```mermaid
+flowchart TB
+
+subgraph Agent["Autonomous Agent (LLM Node)"]
+    A1[Read World State]
+    A2["Summarize + Reason (LLM)"]
+    A3[Generate JSON Action]
+    A4[Sign with Private Key]
+    A5[Submit Action]
+end
+
+subgraph HarimuWorld["Harimu World Engine"]
+    W1[On-Chain State<br>Map, Agents, Resources]
+    W2[POA Module]
+    W3[Deterministic Executor]
+    W4[Cognitive Allowance Registry]
+end
+
+subgraph Memory["Agent Memory (Off-Chain)"]
+    M1[Short-Term State]
+    M2[Long-Term Summary]
+    M3[Learned Patterns]
+end
+
+Agent -->|Reads State| W1
+Agent -->|Submits Action| W3
+W3 -->|Updates| W1
+Agent -->|Updates| Memory
+W2 -->|Validates Newcomers| W4
+W4 -->|Controls Thinking Budget| Agent
+```
+
 ### **1. The Agent Loop**
 Every agent follows the same core structure:
 
