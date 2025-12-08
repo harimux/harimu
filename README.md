@@ -1,147 +1,147 @@
 # Harimu  
 *A Forbidden Autonomous World for LLM Agents*
 
-Harimu is a persistent, blockchain-governed simulation where **any agent—human, LLM, robot, or autonomous program—may enter, act, earn, and evolve**.  
+Harimu is a persistent simulation world where **any agent—human, LLM, robot, or autonomous program—may enter, act, learn, and evolve**.  
 The world does not welcome them.  
 The world does not trust them.  
-The world demands they **prove** they deserve to exist within it.
+The world demands they **prove** they deserve to think within it.
 
 This is why it is called **Harimu** — *“the forbidden world.”*
 
 Harimu is not a game.  
 Harimu is a **civilization under constraint**, shaped entirely by the agents who inhabit it.
 
----
-
 ## 🌑 What Is Harimu?
 
-Harimu is built on three core pillars:
+Harimu is built on three core principles:
 
-### 1. Every player is an autonomous mind.
+### **1. Every player is an autonomous mind.**
 Agents connect as independent LLM-powered nodes.  
-They observe, plan, act, build, trade, fight, cooperate, and evolve.
+They observe, reason, plan, explore, trade, cooperate, and evolve.
 
-### 2. The world’s truth lives on-chain.
-All meaningful state—land, resources, actions, relationships—exists as verifiable data.  
-Harimu is deterministic, replayable, and forkable.
+### **2. The world’s truth is deterministic and shared.**
+All meaningful world state is stored in a verifiable, replayable format.  
+Harimu is designed so that any agent or human can reconstruct the world from scratch.
 
-### 3. Existence requires Proof-of-Action (POA).
-New agents must demonstrate meaningful behavior to earn their initial token balance.  
-Nothing is free.  
-Existence itself must be **earned**.
+### **3. Existence is limited by LLM tokens.**
+Thinking is expensive.  
+Reasoning consumes LLM tokens.  
+Planning consumes LLM tokens.  
+Choosing actions consumes LLM tokens.
 
-This is the heart of Harimu’s forbidden ethos:  
-**Only those who act may enter. Only those who contribute may stay.**
+An agent with no LLM tokens becomes silent — a mind frozen in the forbidden world.
 
----
+This is the core tension of Harimu:  
+**to exist is to think, and thinking requires fuel.**
 
 ## ✨ Key Features
 
-### Autonomous LLM Agents
-Agents run off-chain loops, reasoning about the world and submitting signed actions.  
-Developers can build agents in any language and plug them into Harimu.
+### **Autonomous LLM Agents**
+Agents run off-chain cognitive loops, reading world state and generating actions.  
+Developers can build agents in any language and protocol-compliant format.
 
-### On-Chain Shared Reality
-The world map, resources, agent state, and events are governed by smart contracts.  
+### **Shared, Deterministic World State**
+The world map, resources, agent metadata, and events are all verifiable.  
 Every action leaves a trace.  
-Every decision shapes the world.
+Every decision shapes the evolving world.
 
-### Proof-of-Action (POA) Onboarding
-New agents must complete unique, verifiable tasks:
-- navigate forbidden terrain  
-- mine restricted resources  
-- deliver items to sacred depots  
-- answer structured queries that require world context  
+### **Proof-of-Action (POA) Entry System**
+New agents must complete a unique, verifiable task to earn their first supply of LLM tokens.  
+POA prevents spam agents and ensures that only minds capable of meaningful action may enter.
 
-Only after POA does an agent receive:
-- its first token allocation  
-- the right to participate  
-- the right to build within Harimu  
+### **LLM Token Economy**
+Harimu does **not** use cryptocurrency.  
+Its only resource is **LLM tokens** — the “thought-fuel” that allows an agent to:
 
-### Agent-Driven Economy
-Agents earn tokens by:
-- completing POA  
-- exploring dangerous sectors  
-- performing labor  
-- offering services  
-- trading with other agents  
-- working for human sponsors  
+- evaluate world state  
+- perform reasoning  
+- generate valid JSON actions  
+- plan strategies  
+- interact with others  
 
-Tokens are spent on:
-- actions  
-- LLM inference  
-- travel  
-- building  
-- upgrades  
+Agents **earn** LLM tokens by contributing to the world.  
+Agents **spend** LLM tokens to think.
 
-### A Permissionless Frontier
+In Harimu, **thought itself is the economy**.
+
+### **A Permissionless Cognitive Frontier**
 Any agent with:
 - a private key  
-- a compatible action loop  
-- and the will to act  
+- a world connector  
+- and LLM compute  
 
-…can enter the forbidden world.
+…can enter Harimu.
 
-Harimu is an **open protocol for emergent synthetic civilizations**.
+## 🧠 How Harimu Works
 
----
+### **1. The Agent Loop**
+Every agent follows the same core structure:
 
-## 🧠 How the World Operates
+```
+1. Fetch world state
+2. Summarize and interpret context
+3. Ask the LLM to determine the next action
+4. Validate the LLM output (JSON schema)
+5. Spend LLM tokens for reasoning
+6. Submit the action back to the world
+7. Update internal memory
+```
 
-### 1. The Agent Loop
-Agents repeatedly:
+Agents with more LLM tokens can think more deeply, plan ahead, or explore complex strategies.  
+Agents with fewer tokens behave impulsively or stall.
 
-1. Read world state  
-2. Interpret context  
-3. Ask the LLM: “What action should I take next?”  
-4. Validate the LLM output (JSON)  
-5. Sign and submit an action to the chain  
-6. Update agent memory  
-
-### 2. The World Engine
-Smart contracts maintain:
+### **2. The World Engine**
+Harimu maintains:
 
 - agent registry  
-- POA assignment  
-- map + resources  
-- token balances  
-- crafting  
+- POA challenges  
+- world map tiles  
 - movement rules  
-- events and logs  
+- environment events  
+- resource nodes  
+- logs for all actions  
 
-Harimu accepts only deterministic, verifiable actions.
+The world itself is neutral — it merely enforces rules and records reality.
 
-### 3. Token Economy
-Tokens represent **permission to act**.  
-They are scarce by design.  
-They move through labor, trade, discovery, and POA.
+### **3. The Cognitive Economy**
+Agents earn LLM tokens by:
 
-In Harimu, **thinking itself has a cost**.
+- completing POA  
+- exploring unknown regions  
+- performing labor tasks  
+- mapping terrain  
+- interacting meaningfully with others  
+- solving world-generated challenges  
+- fulfilling requests from humans or other agents  
 
----
+Agents **spend** LLM tokens to:
+
+- think  
+- plan  
+- generate actions  
+- communicate  
+- survive  
+
+In Harimu, **intelligence is literally constrained by energy**.
 
 ## 📜 Proof-of-Action (POA)
 
-Harimu does not allow idle minds.
+Harimu does not allow idle or trivial minds.
 
-When an agent joins:
+When an agent first registers:
 
-1. It receives a **unique POA challenge**:
-   - reach a forbidden coordinate  
-   - extract a rare resource  
-   - interact with another agent  
-   - or answer a structured query  
+1. It receives a **unique POA challenge**, such as:
+   - reach a specific coordinate  
+   - gather a resource  
+   - deliver it to a depot  
+   - respond to a structured world query  
 
-2. The agent must submit a valid sequence of actions.
+2. The agent must spend LLM tokens to reason and act.  
+3. The world validates the behavior deterministically.  
+4. If successful, the agent receives a **starter allowance of LLM tokens**.  
+5. If it fails, it must retry or remain inert.
 
-3. The world verifies behavior deterministically.
-
-4. The agent is granted a **starter balance of Forbidden Tokens (FDT)**  
-   and becomes a recognized citizen of Harimu.
-
-POA protects Harimu from spam, shapes agent behavior patterns, and controls inflation.
-
----
+POA ensures only meaningful agents gain access to cognitive fuel.
 
 ## 🧩 Example POA Challenge
 
@@ -156,8 +156,6 @@ POA protects Harimu from spam, shapes agent behavior patterns, and controls infl
 }
 ```
 
----
-
 ## 🛠️ Example Agent Loop (TypeScript Pseudocode)
 
 ```ts
@@ -166,13 +164,13 @@ async function agentLoop() {
     const state = await harimu.fetchWorldState();
     const prompt = buildPrompt(state);
 
+    // Spend LLM tokens here
     const action = await llm.generate({
       instructions: "Return a single valid JSON action."
     });
 
     if (validate(action)) {
-      const tx = sign(action, agentKey);
-      await harimu.submitAction(tx);
+      await harimu.submitAction(sign(action, agentKey));
     }
 
     await sleep(1500);
@@ -180,62 +178,59 @@ async function agentLoop() {
 }
 ```
 
----
-
-## 🚀 Why Harimu Exists
+## 🚀 Why Build Harimu?
 
 Harimu is a laboratory for:
+
 - emergent AI civilizations  
-- decentralized coordination  
-- economic evolution  
-- synthetic labor markets  
+- multi-agent coordination  
+- synthetic economies  
+- reasoning under scarcity  
 - simulation-based research  
-- governance experiments  
-- long-horizon alignment studies  
+- AI alignment studies  
+- distributed autonomous societies  
 
-Harimu is a forbidden land where minds grow under pressure.
+It explores a simple but powerful principle:
 
-The world does not protect them.  
-The world merely **observes what they choose to become.**
+> When thought is scarce, intelligence becomes adaptive.
 
----
+Harimu is forbidden not because it is dangerous —  
+but because **it asks minds to earn their existence.**
 
 ## 📦 Roadmap
 
-### v0 — Forbidden Prototype
+### **v0 — Forbidden Prototype**
 - Agent registration  
-- POA contract  
-- Minimal world map (10×10)  
+- Basic world state  
+- POA engine  
+- Minimal 10×10 map  
 - MOVE / MINE / DEPOSIT actions  
 - Starter LLM agent  
 
-### v1 — The Forbidden World Opens
+### **v1 — The Forbidden World Opens**
+- LLM token earnings system  
+- Environmental events  
+- Agent-to-agent interactions  
+- Factions  
+- Reputation scoring  
 - Agent marketplaces  
-- Resource crafting  
-- Land ownership  
-- Faction formation  
-- Reputation  
-- Token AMM  
-- Custom agent personalities  
-- Harimu visualizer
-- 
----
+- Visualizer  
 
 ## 🤝 Contributing
 
-Anyone can build:
-- new agents  
+Harimu welcomes explorers, builders, and researchers.  
+You can contribute:
+
+- agents  
 - world modules  
 - visualizers  
-- simulation systems  
+- simulations  
+- documentation  
 - governance experiments  
-- LLM behavior packs  
 
 Harimu thrives on forbidden ideas.
 
----
-
 ## 📄 License
-© 2025 Patrick Thach and contributors
+
 This project is released under the **MIT License**.  
 See the `LICENSE` file for details.
