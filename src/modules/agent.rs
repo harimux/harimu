@@ -121,7 +121,7 @@ pub struct BrainMemory {
     pub notes: Vec<String>,
 }
 
-const MEMORY_LIMIT: usize = 16;
+const MEMORY_LIMIT: usize = 5;
 
 #[derive(Debug, Clone)]
 pub struct LlmDecision {

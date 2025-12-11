@@ -1,66 +1,55 @@
-Resuming from tick 1493
-Tick 1494 | LLM planner | Agent 1
- 1) State     : Agent 1 at (0, 0, 0) qi=100 age=0 last_tick=1493
+Resuming from tick 1515
+Tick 1516 | LLM planner | Agent 1
+ 1) State     : Agent 1 at (0, 0, 0) qi=100 age=0 last_tick=1515
  2) Goal      : Evolve, survive, build machines, form territories, and develop civilizations inside a voxel-based, blockchain-synchronized environment.
- 3) Prompt    : memory=[none]; state=Agent 1 at (0, 0, 0) qi=100 age=0 last_tick=1493; actions=[move(1,0,0), move(0,1,0), move(0,0,1), scan, reproduce(1), build_structure]; reply only TOON{action=<label>} from actions.
- 4) LLM reply : TOON{action=scan}
- 5) Decision  : Scan
- 6) Tx        : signed+submitted (simulated)
- 7) Memory    : 1 notes
-Tick 1494 | LLM planner | Agent 2
- 1) State     : Agent 2 at (1, 0, 0) qi=100 age=0 last_tick=1493
- 2) Goal      : Evolve, survive, build machines, form territories, and develop civilizations inside a voxel-based, blockchain-synchronized environment.
- 3) Prompt    : memory=[none]; state=Agent 2 at (1, 0, 0) qi=100 age=0 last_tick=1493; actions=[move(1,0,0), move(0,1,0), move(0,0,1), scan, reproduce(1), build_structure]; reply only TOON{action=<label>} from actions.
+ 3) Prompt    : memory=[none]; state=Agent 1 at (0, 0, 0) qi=100 age=0 last_tick=1515; actions=[move(1,0,0), move(0,1,0), move(0,0,1), scan, reproduce(1), build_structure]; reply only TOON{action=<label>} from actions.
  4) LLM reply : TOON{action=move(1,0,0)}
  5) Decision  : Move { dx: 1, dy: 0, dz: 0 }
  6) Tx        : signed+submitted (simulated)
  7) Memory    : 1 notes
-Tick 1494 | LLM planner | Agent 3
- 1) State     : Agent 3 at (2, 0, 0) qi=100 age=0 last_tick=1493
+Tick 1516 | LLM planner | Agent 2
+ 1) State     : Agent 2 at (1, 0, 0) qi=100 age=0 last_tick=1515
  2) Goal      : Evolve, survive, build machines, form territories, and develop civilizations inside a voxel-based, blockchain-synchronized environment.
- 3) Prompt    : memory=[none]; state=Agent 3 at (2, 0, 0) qi=100 age=0 last_tick=1493; actions=[move(1,0,0), move(0,1,0), move(0,0,1), scan, reproduce(1), build_structure]; reply only TOON{action=<label>} from actions.
+ 3) Prompt    : memory=[none]; state=Agent 2 at (1, 0, 0) qi=100 age=0 last_tick=1515; actions=[move(1,0,0), move(0,1,0), move(0,0,1), scan, reproduce(1), build_structure]; reply only TOON{action=<label>} from actions.
  4) LLM reply : TOON{action=move(1,0,0)}
  5) Decision  : Move { dx: 1, dy: 0, dz: 0 }
  6) Tx        : signed+submitted (simulated)
  7) Memory    : 1 notes
-Tick 1494: 6 events, 1 rejections
- - tick 1494 started
- - agent 1 observed action scan
- - agent 1 scan at (0, 0, 0) qi=100 | qi_sources=0 | structures=0
- - agent 3 spent 1 qi on move
- - agent 3 moved from (2, 0, 0) to (3, 0, 0)
- - tick 1494 completed
-Rejections:
- - agent 2 action Move { dx: 1, dy: 0, dz: 0 }: PositionOccupied { agent_id: 2, target: Position { x: 2, y: 0, z: 0 }, occupied_by: 3 }
-Agent 91b6ec10279cfb84fdc6fde6beea2396a66bf77f (id 1) | qi=100 | position=(0, 0, 0) | alive=true | age=1
-Summary: structures_built=0 | offspring=0 | events_seen=9
-Tick 1494: 6 events, 1 rejections
- - tick 1494 started
- - agent 1 observed action scan
- - agent 1 scan at (0, 0, 0) qi=100 | qi_sources=0 | structures=0
- - agent 3 spent 1 qi on move
- - agent 3 moved from (2, 0, 0) to (3, 0, 0)
- - tick 1494 completed
-Rejections:
- - agent 2 action Move { dx: 1, dy: 0, dz: 0 }: PositionOccupied { agent_id: 2, target: Position { x: 2, y: 0, z: 0 }, occupied_by: 3 }
-Agent 7e16585fd4fc6ccc20eeb6d51c3c807a7da37f7e (id 2) | qi=100 | position=(1, 0, 0) | alive=true | age=0
-Summary: structures_built=0 | offspring=0 | events_seen=9
-Tick 1494: 6 events, 1 rejections
- - tick 1494 started
- - agent 1 observed action scan
- - agent 1 scan at (0, 0, 0) qi=100 | qi_sources=0 | structures=0
- - agent 3 spent 1 qi on move
- - agent 3 moved from (2, 0, 0) to (3, 0, 0)
- - tick 1494 completed
-Rejections:
- - agent 2 action Move { dx: 1, dy: 0, dz: 0 }: PositionOccupied { agent_id: 2, target: Position { x: 2, y: 0, z: 0 }, occupied_by: 3 }
-Agent 66f64ec4726f8b238fd1a2bce2f13300e47edb27 (id 3) | qi=99 | position=(3, 0, 0) | alive=true | age=1
-Summary: structures_built=0 | offspring=0 | events_seen=9
-Tick 1495 | LLM planner | Agent 1
- 1) State     : Agent 1 at (0, 0, 0) qi=100 age=1 last_tick=1494
+Tick 1516 | LLM planner | Agent 3
+ 1) State     : Agent 3 at (2, 0, 0) qi=100 age=0 last_tick=1515
  2) Goal      : Evolve, survive, build machines, form territories, and develop civilizations inside a voxel-based, blockchain-synchronized environment.
- 3) Prompt    : memory=[tick 1493 | state: Agent 1 at (0, 0, 0) qi=100 age=0 last_tick=1493 | decision: scan | llm: TOON{action=scan}]; state=Agent 1 at (0, 0, 0) qi=100 age=1 last_tick=1494; actions=[move(1,0,0), move(0,1,0), move(0,0,1), scan, reproduce(1), build_structure]; reply only TOON{action=<label>} from actions.
+ 3) Prompt    : memory=[none]; state=Agent 3 at (2, 0, 0) qi=100 age=0 last_tick=1515; actions=[move(1,0,0), move(0,1,0), move(0,0,1), scan, reproduce(1), build_structure]; reply only TOON{action=<label>} from actions.
  4) LLM reply : TOON{action=scan}
  5) Decision  : Scan
  6) Tx        : signed+submitted (simulated)
- 7) Memory    : 2 notes
+ 7) Memory    : 1 notes
+Tick 1516: 4 events, 2 rejections
+ - tick 1516 started
+ - agent 3 observed action scan
+ - agent 3 scan at (2, 0, 0) qi=100 | qi_sources=0 | structures=0
+ - tick 1516 completed
+Rejections:
+ - agent 1 action Move { dx: 1, dy: 0, dz: 0 }: PositionOccupied { agent_id: 1, target: Position { x: 1, y: 0, z: 0 }, occupied_by: 2 }
+ - agent 2 action Move { dx: 1, dy: 0, dz: 0 }: PositionOccupied { agent_id: 2, target: Position { x: 2, y: 0, z: 0 }, occupied_by: 3 }
+Agent 91b6ec10279cfb84fdc6fde6beea2396a66bf77f (id 1) | qi=100 | position=(0, 0, 0) | alive=true | age=0
+Summary: structures_built=0 | offspring=0 | events_seen=7
+Tick 1516: 4 events, 2 rejections
+ - tick 1516 started
+ - agent 3 observed action scan
+ - agent 3 scan at (2, 0, 0) qi=100 | qi_sources=0 | structures=0
+ - tick 1516 completed
+Rejections:
+ - agent 1 action Move { dx: 1, dy: 0, dz: 0 }: PositionOccupied { agent_id: 1, target: Position { x: 1, y: 0, z: 0 }, occupied_by: 2 }
+ - agent 2 action Move { dx: 1, dy: 0, dz: 0 }: PositionOccupied { agent_id: 2, target: Position { x: 2, y: 0, z: 0 }, occupied_by: 3 }
+Agent 66f64ec4726f8b238fd1a2bce2f13300e47edb27 (id 2) | qi=100 | position=(1, 0, 0) | alive=true | age=0
+Summary: structures_built=0 | offspring=0 | events_seen=7
+Tick 1516: 4 events, 2 rejections
+ - tick 1516 started
+ - agent 3 observed action scan
+ - agent 3 scan at (2, 0, 0) qi=100 | qi_sources=0 | structures=0
+ - tick 1516 completed
+Rejections:
+ - agent 1 action Move { dx: 1, dy: 0, dz: 0 }: PositionOccupied { agent_id: 1, target: Position { x: 1, y: 0, z: 0 }, occupied_by: 2 }
+ - agent 2 action Move { dx: 1, dy: 0, dz: 0 }: PositionOccupied { agent_id: 2, target: Position { x: 2, y: 0, z: 0 }, occupied_by: 3 }
+Agent 7e16585fd4fc6ccc20eeb6d51c3c807a7da37f7e (id 3) | qi=100 | position=(2, 0, 0) | alive=true | age=1
+Summary: structures_built=0 | offspring=0 | events_seen=7
