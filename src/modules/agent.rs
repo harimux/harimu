@@ -121,6 +121,8 @@ pub struct BrainMemory {
     pub notes: Vec<String>,
 }
 
+const MEMORY_LIMIT: usize = 16;
+
 #[derive(Debug, Clone)]
 pub struct LlmDecision {
     pub summary: String,
@@ -160,7 +162,8 @@ pub fn plan_with_llm(
     next_tick: u64,
 ) -> LlmDecision {
     let summary = summarize_world(vm, agent_id);
-    let prompt = build_prompt(&summary, candidates, vm, agent_id);
+    let memory_text = memory_context(memory, MEMORY_LIMIT);
+    let prompt = build_prompt(&summary, &memory_text, candidates, vm, agent_id);
 
     let fallback_action = || choose_action(vm, agent_id, candidates, next_tick);
 
@@ -183,9 +186,16 @@ pub fn plan_with_llm(
     // Safety override if low on Qi.
     action = survival_override(vm, agent_id, candidates, next_tick, action);
 
-    memory
-        .notes
-        .push(format!("tick {} => {}", vm.world().tick(), summary));
+    push_memory(
+        memory,
+        format!(
+            "tick {} | state: {} | decision: {} | llm: {}",
+            vm.world().tick(),
+            summary,
+            action_token(&action),
+            truncate(&response, 120)
+        ),
+    );
 
     LlmDecision {
         summary,
@@ -236,7 +246,30 @@ fn summarize_world(vm: &Vm, agent_id: AgentId) -> String {
     }
 }
 
-fn build_prompt(summary: &str, candidates: &[ActionArg], _vm: &Vm, _agent_id: AgentId) -> String {
+fn memory_context(memory: &BrainMemory, limit: usize) -> String {
+    if memory.notes.is_empty() {
+        return "none".into();
+    }
+    let len = memory.notes.len();
+    let start = len.saturating_sub(limit);
+    memory.notes[start..].join(" | ")
+}
+
+fn push_memory(memory: &mut BrainMemory, entry: String) {
+    memory.notes.push(entry);
+    if memory.notes.len() > MEMORY_LIMIT {
+        let drop = memory.notes.len() - MEMORY_LIMIT;
+        memory.notes.drain(0..drop);
+    }
+}
+
+fn build_prompt(
+    summary: &str,
+    memory_text: &str,
+    candidates: &[ActionArg],
+    _vm: &Vm,
+    _agent_id: AgentId,
+) -> String {
     let options = candidates
         .iter()
         .map(|a| a.label())
@@ -244,7 +277,7 @@ fn build_prompt(summary: &str, candidates: &[ActionArg], _vm: &Vm, _agent_id: Ag
         .join(", ");
 
     format!(
-        "state={summary}; actions=[{options}]; reply only TOON{{action=<label>}} from actions."
+        "memory=[{memory_text}]; state={summary}; actions=[{options}]; reply only TOON{{action=<label>}} from actions."
     )
 }
 
@@ -385,11 +418,13 @@ struct OllamaResult {
 }
 
 fn truncate(text: &str, max: usize) -> String {
-    if text.len() <= max {
-        text.to_string()
-    } else {
-        format!("{}…", &text[..max])
-    }
+    // Truncate on char boundaries to avoid UTF-8 panics when logs contain emoji.
+    let mut chars = text.char_indices();
+    let cutoff = match chars.nth(max) {
+        Some((idx, _)) => idx,
+        None => return text.to_string(),
+    };
+    format!("{}...", &text[..cutoff])
 }
 
 fn action_token(action: &Action) -> String {

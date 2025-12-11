@@ -1,5 +1,5 @@
 {
-  "status": "Stopped",
-  "last_tick": 1299,
-  "message": "completed 1299 tick(s)"
+  "status": "Running",
+  "last_tick": 1494,
+  "message": "agent loop running (llm)"
 }
