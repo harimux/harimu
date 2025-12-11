@@ -1,0 +1,20 @@
+{
+  "agents": {
+    "7e16585fd4fc6ccc20eeb6d51c3c807a7da37f7e": {
+      "id": "7e16585fd4fc6ccc20eeb6d51c3c807a7da37f7e",
+      "qi": 100,
+      "companions": 0
+    },
+    "91b6ec10279cfb84fdc6fde6beea2396a66bf77f": {
+      "id": "91b6ec10279cfb84fdc6fde6beea2396a66bf77f",
+      "qi": 100,
+      "companions": 1
+    },
+    "66f64ec4726f8b238fd1a2bce2f13300e47edb27": {
+      "id": "66f64ec4726f8b238fd1a2bce2f13300e47edb27",
+      "qi": 100,
+      "companions": 0
+    }
+  },
+  "votes": {}
+}
