@@ -501,6 +501,16 @@ impl Vm {
         &mut self.world
     }
 
+    /// Read-only access to a single agent's state.
+    pub fn agent(&self, agent_id: AgentId) -> Option<&Agent> {
+        self.world.agent(agent_id)
+    }
+
+    /// Registry view of all agents in the VM.
+    pub fn agent_registry(&self) -> impl Iterator<Item = (&AgentId, &Agent)> {
+        self.world.agents()
+    }
+
     /// Set the current tick counter (used when resuming from persisted state).
     pub fn set_tick(&mut self, tick: u64) {
         self.world.tick = tick;
