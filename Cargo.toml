@@ -11,3 +11,6 @@ reqwest = { version = "0.12", default-features = false, features = ["blocking", 
 sha2 = "0.10"
 rand = "0.8"
 hex = "0.4"
+serde_toon = "0.2"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+which = "6"

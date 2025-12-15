@@ -1,0 +1,12 @@
+[package]
+name = "harimu-godot-viewer"
+version = "0.1.0"
+edition = "2024"
+
+[lib]
+name = "harimu_godot_viewer"
+crate-type = ["cdylib"]
+
+[dependencies]
+godot = "0.2"
+harimu = { path = "../.." }

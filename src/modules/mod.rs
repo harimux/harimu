@@ -1,6 +1,11 @@
 pub mod agent;
 pub mod agents;
+pub mod ore;
+pub mod qi;
 pub mod state;
 pub mod structure;
+pub mod stats;
 pub mod vm;
 pub mod wallet;
+pub mod world;
+pub mod view;

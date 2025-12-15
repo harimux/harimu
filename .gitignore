@@ -1,1 +1,6 @@
 /target
+.harimu
+.key
+/logs
+godot/project/addons/harimu/bin/
+godot/extension/target/

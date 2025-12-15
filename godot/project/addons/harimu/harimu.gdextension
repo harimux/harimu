@@ -1,0 +1,9 @@
+[configuration]
+entry_symbol="gdext_rust_init"
+compatibility_min="4.2"
+compatibility_max="4.3"
+
+[libraries]
+macos.64="res://addons/harimu/bin/libharimu_godot_viewer.dylib"
+linux.64="res://addons/harimu/bin/libharimu_godot_viewer.so"
+windows.64="res://addons/harimu/bin/harimu_godot_viewer.dll"

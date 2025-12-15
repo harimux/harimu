@@ -1,0 +1,10 @@
+; Engine configuration for the built-in Harimu world viewer (Godot 4).
+config_version=5
+
+[application]
+config/name="Harimu Viewer"
+run/main_scene="res://addons/harimu/world_view.tscn"
+
+[rendering]
+renderer/rendering_method="forward_plus"
+environment/default_environment="res://default_env.tres"

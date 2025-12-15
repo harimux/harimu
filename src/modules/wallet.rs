@@ -3,12 +3,12 @@ use std::fs;
 use std::io;
 use std::path::PathBuf;
 
-use rand::rngs::OsRng;
 use rand::RngCore;
+use rand::rngs::OsRng;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
-use crate::modules::vm::{Qi, POW_DIFFICULTY_BYTES, POW_REWARD};
+use crate::modules::vm::{POW_DIFFICULTY_BYTES, POW_REWARD, Qi};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Wallet {

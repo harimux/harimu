@@ -1,15 +1,29 @@
 use std::collections::HashMap;
+use std::env;
+use std::fs;
+use std::path::PathBuf;
 use std::str::FromStr;
 use std::time::Duration;
 
-use clap::{Parser, Subcommand};
+use clap::{ArgAction, Parser, Subcommand};
 use harimu::{
-    agents::{self, VoteDirection},
+    Action, ActionArg, ActionRequest, AgentId, BrainMemory, BrainMode, Event, LlmClient,
+    LlmProvider, OreKind, Position, StructureKind, StructureRecord, TickResult, Vm, agents,
+    load_structure_store, plan_with_llm, record_successful_actions, reset_action_stats,
+    save_action_stats, save_structure_store, save_world_snapshot, save_world_snapshot_tick,
     state::{self, Status},
-    wallet::{self, WalletStore},
-    plan_with_llm, Action, ActionArg, ActionRequest, AgentId, BrainMemory, BrainMode, Event,
-    LlmClient, Position, StructureKind, TickResult, Vm,
+    world::WorldQueries,
 };
+
+mod agent;
+mod wallet;
+mod world;
+
+use agent::{run_agent, AgentCommand};
+use wallet::{run_wallet, run_wallet_mine, WalletCommand};
+use world::{run_world, WorldCommand};
+
+const PID_FILE: &str = ".harimu/runtime.pid";
 
 #[derive(Parser)]
 #[command(
@@ -44,24 +58,41 @@ pub enum Command {
         /// Decision driver: loop (deterministic) or llm (mocked planner)
         #[arg(long, default_value_t = BrainMode::Llm, value_enum)]
         brain: BrainMode,
-        /// Ollama host (only used when --brain llm)
-        #[arg(long, default_value = "http://127.0.0.1:11434")]
+        /// LLM host/base URL (default OpenAI endpoint)
+        #[arg(long, default_value = "https://api.openai.com")]
         llm_host: String,
-        /// Ollama model (only used when --brain llm)
-        #[arg(long, default_value = "llama2")]
+        /// Model name (e.g., gpt-5-nano, gpt-4o-mini, glm-4.6:cloud). Interpreted by the selected provider.
+        #[arg(long, default_value = "gpt-5-nano")]
         llm_model: String,
-        /// Ollama timeout in ms (only used when --brain llm)
+        /// LLM timeout in ms
         #[arg(long, default_value_t = 15_000)]
         llm_timeout_ms: u64,
+        /// LLM provider: openai (default; OpenAI-style /v1/chat/completions) or ollama (local /api/chat)
+        #[arg(long, default_value_t = LlmProvider::Openai, value_enum)]
+        llm_provider: LlmProvider,
+        /// API key for OpenAI-compatible providers (also reads LLM_API_KEY env var)
+        #[arg(long)]
+        llm_api_key: Option<String>,
         /// Desired tick rate (ticks per second). If set, overrides delay-ms.
         #[arg(long)]
         tick_rate: Option<f64>,
         /// Delay between ticks in milliseconds
-        #[arg(short = 'd', long, default_value_t = 0, help = "Delay between ticks in ms (used when --tick-rate is not set; default pacing falls back to 1 tick/sec)")]
+        #[arg(
+            short = 'd',
+            long,
+            default_value_t = 0,
+            help = "Delay between ticks in ms (used when --tick-rate is not set; default pacing falls back to 1 tick/sec)"
+        )]
         delay_ms: u64,
         /// Action (repeatable). Formats: scan | idle | move:<dx>,<dy>,<dz>. Defaults to a simple loop if omitted.
         #[arg(short = 'a', long = "action", value_name = "ACTION")]
         actions: Vec<ActionArg>,
+        /// Run in the foreground (default is background)
+        #[arg(long, action = ArgAction::SetTrue, default_value_t = false)]
+        foreground: bool,
+        /// Internal flag for background child process (do not use directly)
+        #[arg(long, hide = true, default_value_t = false)]
+        background_child: bool,
     },
     /// Show runtime status
     Status,
@@ -76,6 +107,11 @@ pub enum Command {
     Wallet {
         #[command(subcommand)]
         command: WalletCommand,
+    },
+    /// World operations (Qi sources, nodes)
+    World {
+        #[command(subcommand)]
+        command: WorldCommand,
     },
     /// Mine Qi into a wallet using PoW
     Mine {
@@ -92,47 +128,6 @@ pub enum Command {
         #[arg(long, default_value_t = 0)]
         delay_ms: u64,
     },
-}
-
-#[derive(Subcommand)]
-pub enum AgentCommand {
-    /// Create a new agent entry (hash ignored; address is generated)
-    Create,
-    /// Show info for an agent
-    Info { hash: String },
-    /// List all agents
-    List,
-    /// Spawn a companion for an agent
-    Spawn { hash: String },
-    /// Vote on an action id (hash) up/down
-    Vote {
-        action_id: String,
-        direction: VoteDirectionArg,
-    },
-    /// Infuse Qi ("water") into an agent
-    Infuse {
-        agent_id: String,
-        #[arg(long)]
-        amount: u64,
-    },
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum VoteDirectionArg {
-    Up,
-    Down,
-}
-
-impl FromStr for VoteDirectionArg {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s.trim().to_lowercase().as_str() {
-            "up" => Ok(VoteDirectionArg::Up),
-            "down" => Ok(VoteDirectionArg::Down),
-            other => Err(format!("unknown vote direction '{}', use up|down", other)),
-        }
-    }
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -184,9 +179,13 @@ fn dispatch(command: Command) -> Result<(), String> {
             llm_host,
             llm_model,
             llm_timeout_ms,
+            llm_provider,
+            llm_api_key,
             tick_rate,
             delay_ms,
             actions,
+            foreground,
+            background_child,
         } => run_start(
             agent,
             qi,
@@ -196,14 +195,19 @@ fn dispatch(command: Command) -> Result<(), String> {
             llm_host,
             llm_model,
             llm_timeout_ms,
+            llm_provider,
+            llm_api_key,
             tick_rate,
             delay_ms,
             actions,
+            foreground,
+            background_child,
         ),
         Command::Status => run_status(),
         Command::Stop => run_stop(),
         Command::Agent { command } => run_agent(command),
         Command::Wallet { command } => run_wallet(command),
+        Command::World { command } => run_world(command),
         Command::Mine {
             address,
             start_nonce,
@@ -215,7 +219,10 @@ fn dispatch(command: Command) -> Result<(), String> {
 
 fn run_init() -> Result<(), String> {
     state::init_state().map_err(|e| e.to_string())?;
-    println!("Initialized state at {}", state::state_file_path().display());
+    println!(
+        "Initialized state at {}",
+        state::state_file_path().display()
+    );
     Ok(())
 }
 
@@ -248,152 +255,8 @@ fn run_stop() -> Result<(), String> {
     )
     .map_err(|e| e.to_string())?;
     println!("Stopped. last_tick={}", updated.last_tick);
-    Ok(())
-}
-
-fn run_wallet(cmd: WalletCommand) -> Result<(), String> {
-    let mut store = WalletStore::load().map_err(|e| e.to_string())?;
-
-    match cmd {
-        WalletCommand::Create => {
-            let wallet = wallet::create_wallet().map_err(|e| e.to_string())?;
-            store.upsert_wallet(wallet.clone());
-            store.save().map_err(|e| e.to_string())?;
-            println!("Created wallet: {}", wallet.address);
-        }
-        WalletCommand::Balance { address } => {
-            let addr = if let Some(addr) = address {
-                addr
-            } else {
-                store
-                    .first_wallet()
-                    .map(|w| w.address.clone())
-                    .ok_or_else(|| "no wallets found; create one first".to_string())?
-            };
-
-            let wallet = store
-                .get_wallet(&addr)
-                .ok_or_else(|| format!("wallet {} not found", addr))?;
-            println!("Wallet {} balance: {} Qi", wallet.address, wallet.balance);
-        }
-        WalletCommand::Transfer { from, to, amount } => {
-            wallet::transfer(&mut store, &from, &to, amount)?;
-            store.save().map_err(|e| e.to_string())?;
-            println!(
-                "Transferred {} Qi from {} to {}",
-                amount, from, to
-            );
-        }
-    }
-
-    Ok(())
-}
-
-fn run_agent(cmd: AgentCommand) -> Result<(), String> {
-    let mut store = agents::load().map_err(|e| e.to_string())?;
-
-    match cmd {
-        AgentCommand::Create => {
-            let profile = agents::create_agent(&mut store, String::new()).map_err(|e| e.to_string())?;
-            agents::save(&store).map_err(|e| e.to_string())?;
-            println!("Created agent {} (qi={}, companions={})", profile.id, profile.qi, profile.companions);
-        }
-        AgentCommand::Info { hash } => {
-            let profile = store
-                .agents
-                .get(&hash)
-                .ok_or_else(|| format!("agent {} not found", hash))?;
-            println!("Agent {} | qi={} | companions={}", profile.id, profile.qi, profile.companions);
-        }
-        AgentCommand::List => {
-            if store.agents.is_empty() {
-                println!("No agents found");
-            } else {
-                for agent in store.agents.values() {
-                    println!("{} | qi={} | companions={}", agent.id, agent.qi, agent.companions);
-                }
-            }
-        }
-        AgentCommand::Spawn { hash } => {
-            agents::spawn_companion(&mut store, &hash).map_err(|e| e.to_string())?;
-            agents::save(&store).map_err(|e| e.to_string())?;
-            println!("Spawned companion for agent {}", hash);
-        }
-        AgentCommand::Vote { action_id, direction } => {
-            let dir = match direction {
-                VoteDirectionArg::Up => VoteDirection::Up,
-                VoteDirectionArg::Down => VoteDirection::Down,
-            };
-            agents::vote(&mut store, &action_id, dir);
-            agents::save(&store).map_err(|e| e.to_string())?;
-            let tally = store.votes.get(&action_id).cloned().unwrap_or_default();
-            println!("Vote recorded for action {}: up={} down={}", action_id, tally.up, tally.down);
-        }
-        AgentCommand::Infuse { agent_id, amount } => {
-            agents::infuse(&mut store, &agent_id, amount).map_err(|e| e.to_string())?;
-            agents::save(&store).map_err(|e| e.to_string())?;
-            let profile = store.agents.get(&agent_id).unwrap();
-            println!("Infused {} Qi into agent {} (new qi={})", amount, agent_id, profile.qi);
-        }
-    }
-
-    Ok(())
-}
-
-fn run_wallet_mine(
-    address: Option<String>,
-    start_nonce: u64,
-    iterations: Option<u64>,
-    delay_ms: u64,
-) -> Result<(), String> {
-    let mut store = WalletStore::load().map_err(|e| e.to_string())?;
-    let address = if let Some(addr) = address {
-        addr
-    } else {
-        store
-            .first_wallet()
-            .map(|w| w.address.clone())
-            .ok_or_else(|| "no wallets found; create one first".to_string())?
-    };
-    let mut nonce = start_nonce;
-    let mut mined = 0u64;
-
-    println!(
-        "Mining for wallet {} starting at nonce {} (difficulty {} leading zero byte(s))",
-        address,
-        start_nonce,
-        harimu::POW_DIFFICULTY_BYTES
-    );
-
-    loop {
-        let (found_nonce, reward) = wallet::mine(&mut store, &address, nonce)?;
-        store.save().map_err(|e| e.to_string())?;
-
-        mined = mined.saturating_add(1);
-        println!(
-            "[{}] Mined {} Qi with nonce {} | total_mined={} | balance={}",
-            mined,
-            reward,
-            found_nonce,
-            mined,
-            store
-                .get_wallet(&address)
-                .map(|w| w.balance)
-                .unwrap_or(0)
-        );
-
-        match iterations {
-            Some(limit) if mined >= limit => break,
-            _ => {}
-        }
-
-        nonce = found_nonce.wrapping_add(1);
-
-        if delay_ms > 0 {
-            std::thread::sleep(Duration::from_millis(delay_ms));
-        }
-    }
-
+    print_action_summary()?;
+    try_kill_background_process();
     Ok(())
 }
 
@@ -406,10 +269,33 @@ fn run_start(
     llm_host: String,
     llm_model: String,
     llm_timeout_ms: u64,
+    llm_provider: LlmProvider,
+    llm_api_key: Option<String>,
     tick_rate: Option<f64>,
     delay_ms: u64,
     actions: Vec<ActionArg>,
+    foreground: bool,
+    background_child: bool,
 ) -> Result<(), String> {
+    let background = !foreground;
+    if background && !background_child {
+        return launch_background_start(
+            agent,
+            qi,
+            position,
+            ticks,
+            brain,
+            llm_host,
+            llm_model,
+            llm_timeout_ms,
+            llm_provider,
+            llm_api_key,
+            tick_rate,
+            delay_ms,
+            actions,
+        );
+    }
+
     const DEFAULT_TICK_RATE: f64 = 1.0;
 
     let prior_state = match state::load_state().map_err(|e| e.to_string())? {
@@ -432,6 +318,19 @@ fn run_start(
             println!("Resuming from tick {}", s.last_tick);
         }
     }
+    reset_action_stats().map_err(|e| format!("reset stats: {}", e))?;
+
+    let qi_store = WorldQueries::qi_sources()?;
+    if !qi_store.sources.is_empty() {
+        vm.set_max_qi_supply(qi_store.total_qi_infused);
+        for src in &qi_store.sources {
+            vm.seed_ore_source(src.ore, src.position, src.capacity, src.recharge_per_tick);
+        }
+        println!(
+            "Seeded {} ore node(s) into the world",
+            qi_store.sources.len()
+        );
+    }
 
     // Load agents; either run all or a specific one.
     let registry = agents::load().map_err(|e| e.to_string())?;
@@ -443,14 +342,24 @@ fn run_start(
             .get(&addr)
             .map(|a| a.qi as harimu::Qi)
             .unwrap_or(qi);
-        let id = vm.spawn_agent(addr, agent_qi, position);
+        let max_age = registry
+            .agents
+            .get(&addr)
+            .map(|a| a.max_age)
+            .unwrap_or(harimu::DEFAULT_MAX_AGENT_AGE);
+        let id = vm.spawn_agent_with_age(addr, agent_qi, position, max_age);
         agent_ids.push(id);
     } else {
         if registry.agents.is_empty() {
             return Err("no agents found; create one with `harimu agent create`".to_string());
         }
         for (addr, profile) in registry.agents.iter() {
-            let id = vm.spawn_agent(addr.clone(), profile.qi as harimu::Qi, position);
+            let id = vm.spawn_agent_with_age(
+                addr.clone(),
+                profile.qi as harimu::Qi,
+                position,
+                profile.max_age,
+            );
             agent_ids.push(id);
         }
     }
@@ -480,18 +389,27 @@ fn run_start(
         }
     };
 
-    state::set_status(Status::Running, vm.world().tick(), Some("agent loop running".into()))
-        .map_err(|e| e.to_string())?;
+    state::set_status(
+        Status::Running,
+        vm.world().tick(),
+        Some("agent loop running".into()),
+    )
+    .map_err(|e| e.to_string())?;
 
     match brain {
         BrainMode::Loop => run_loop(&agent_ids, &action_cycle, ticks, effective_delay, &mut vm)?,
         BrainMode::Llm => {
+            let api_key = llm_api_key
+                .or_else(|| env::var("LLM_API_KEY").ok())
+                .or_else(load_llm_key_from_file);
             let client = LlmClient::new(
                 llm_host,
                 llm_model,
+                llm_provider,
+                api_key,
                 Duration::from_millis(llm_timeout_ms),
             )
-            .map_err(|e| format!("ollama client: {}", e))?;
+            .map_err(|e| format!("llm client: {}", e))?;
 
             run_llm_loop(
                 &agent_ids,
@@ -554,14 +472,17 @@ fn run_loop(
 
         let tick = vm.step(&requests);
         println!("Tick {}", tick.tick);
-        for agent_id in agent_ids {
-            print_tick(&tick, vm, *agent_id);
-        }
+    for agent_id in agent_ids {
+        print_tick(&tick, vm, *agent_id);
+    }
+    persist_structures(&tick.events)?;
+    persist_world_view(vm);
+    persist_action_stats(&requests, &tick);
 
-        state::set_status(
-            Status::Running,
-            vm.world().tick(),
-            Some("agent loop running".into()),
+    state::set_status(
+        Status::Running,
+        vm.world().tick(),
+        Some("agent loop running".into()),
         )
         .map_err(|e| e.to_string())?;
 
@@ -591,6 +512,17 @@ fn run_loop(
     Ok(())
 }
 
+fn load_llm_key_from_file() -> Option<String> {
+    let path = PathBuf::from(".harimu/.key");
+    let data = fs::read_to_string(&path).ok()?;
+    let trimmed = data.trim();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed.to_string())
+    }
+}
+
 fn run_llm_loop(
     agent_ids: &[AgentId],
     action_cycle: &[ActionArg],
@@ -599,6 +531,7 @@ fn run_llm_loop(
     vm: &mut Vm,
     client: LlmClient,
 ) -> Result<(), String> {
+    let llm_client = Some(client);
     let mut remaining = ticks;
     let mut memories: HashMap<AgentId, BrainMemory> = HashMap::new();
 
@@ -614,11 +547,15 @@ fn run_llm_loop(
                 *agent_id,
                 action_cycle,
                 memory,
-                Some(&client),
+                llm_client.as_ref(),
                 next_tick,
             );
 
-            println!("Tick {} | LLM planner | Agent {}", vm.world().tick() + 1, agent_id);
+            println!(
+                "Tick {} | LLM planner | Agent {}",
+                vm.world().tick() + 1,
+                agent_id
+            );
             println!(" 1) State     : {}", decision.summary);
             println!(" 2) Goal      : {}", harimu::DEFAULT_AGENT_GOAL);
             println!(" 3) Prompt    : {}", decision.prompt);
@@ -626,6 +563,15 @@ fn run_llm_loop(
             println!(" 5) Decision  : {:?}", decision.action);
             println!(" 6) Tx        : signed+submitted (simulated)");
             println!(" 7) Memory    : {} notes", memory.notes.len());
+            println!(" 8) LLM model : {:?} {}", decision.provider, decision.model);
+
+            if !decision.llm_ok {
+                println!(
+                    "LLM unreachable; falling back to loop action this tick. Reason: {}",
+                    decision.response
+                );
+            } else {
+            }
 
             let mut action = decision.action;
             if let Action::Reproduce { partner: p } = action {
@@ -646,7 +592,11 @@ fn run_llm_loop(
         let tick = vm.step(&requests);
         for agent_id in agent_ids {
             print_tick(&tick, vm, *agent_id);
+            record_outcome(&mut memories, &tick, *agent_id);
         }
+        persist_structures(&tick.events)?;
+        persist_world_view(vm);
+        persist_action_stats(&requests, &tick);
 
         state::set_status(
             Status::Running,
@@ -682,19 +632,27 @@ fn run_llm_loop(
 }
 
 fn default_llm_actions(agent_ids: &[AgentId]) -> Vec<ActionArg> {
-    let mut actions = default_loop_actions(agent_ids);
-    actions.push(ActionArg::BuildStructure {
-        kind: StructureKind::Basic,
-    });
-    actions
-}
-
-fn default_loop_actions(agent_ids: &[AgentId]) -> Vec<ActionArg> {
     let mut actions = vec![
-        ActionArg::Move { dx: 1, dy: 0, dz: 0 },
-        ActionArg::Move { dx: 0, dy: 1, dz: 0 },
-        ActionArg::Move { dx: 0, dy: 0, dz: 1 },
+        ActionArg::Move {
+            dx: 0,
+            dy: 0,
+            dz: 0,
+        },
         ActionArg::Scan,
+        ActionArg::BuildStructure {
+            kind: StructureKind::Basic,
+        },
+        ActionArg::BuildStructure {
+            kind: StructureKind::Programmable,
+        },
+        ActionArg::HarvestOre {
+            ore: OreKind::Qi,
+            source_id: 0,
+        },
+        ActionArg::HarvestOre {
+            ore: OreKind::Transistor,
+            source_id: 0,
+        },
     ];
 
     if agent_ids.len() > 1 {
@@ -703,6 +661,168 @@ fn default_loop_actions(agent_ids: &[AgentId]) -> Vec<ActionArg> {
     }
 
     actions
+}
+
+fn default_loop_actions(agent_ids: &[AgentId]) -> Vec<ActionArg> {
+    let mut actions = vec![
+        ActionArg::Move {
+            dx: 1,
+            dy: 0,
+            dz: 0,
+        },
+        ActionArg::Move {
+            dx: 0,
+            dy: 1,
+            dz: 0,
+        },
+        ActionArg::Move {
+            dx: 0,
+            dy: 0,
+            dz: 1,
+        },
+        ActionArg::Scan,
+        ActionArg::BuildStructure {
+            kind: StructureKind::Basic,
+        },
+        ActionArg::HarvestOre {
+            ore: OreKind::Transistor,
+            source_id: 0,
+        },
+        ActionArg::BuildStructure {
+            kind: StructureKind::Programmable,
+        },
+    ];
+
+    if agent_ids.len() > 1 {
+        let partner = agent_ids[0];
+        actions.push(ActionArg::Reproduce { partner });
+    }
+
+    actions
+}
+
+fn persist_structures(events: &[Event]) -> Result<(), String> {
+    use std::collections::HashSet;
+
+    let mut store = load_structure_store().map_err(|e| e.to_string())?;
+    let mut seen: HashSet<u64> = store.structures.iter().map(|s| s.id).collect();
+    let mut updated = false;
+
+    for event in events {
+        if let Event::StructureBuilt {
+            agent_id,
+            kind,
+            position,
+            structure_id,
+        } = event
+        {
+            if seen.insert(*structure_id) {
+                store.structures.push(StructureRecord {
+                    id: *structure_id,
+                    kind: *kind,
+                    position: *position,
+                    zone: position.zone(),
+                    owner: *agent_id,
+                });
+                updated = true;
+            }
+        }
+    }
+
+    if updated {
+        save_structure_store(&store).map_err(|e| e.to_string())?;
+    }
+
+    Ok(())
+}
+
+fn record_outcome(
+    memories: &mut HashMap<AgentId, BrainMemory>,
+    tick: &TickResult,
+    agent_id: AgentId,
+) {
+    const MEMORY_LIMIT: usize = 8;
+    let memory = memories.entry(agent_id).or_default();
+
+    if let Some(rej) = tick
+        .rejections
+        .iter()
+        .find(|r| r.request.agent_id == agent_id)
+    {
+        memory.notes.push(format!(
+            "tick {}: action {:?} rejected ({})",
+            tick.tick, rej.request.action, rej.error
+        ));
+    } else {
+        memory.notes.push(format!(
+            "tick {}: action applied (events={})",
+            tick.tick,
+            tick.events.len()
+        ));
+    }
+
+    if memory.notes.len() > MEMORY_LIMIT {
+        let drop = memory.notes.len() - MEMORY_LIMIT;
+        memory.notes.drain(0..drop);
+    }
+}
+
+fn persist_world_view(vm: &Vm) {
+    let snapshot = vm.snapshot();
+    if let Err(err) = save_world_snapshot(&snapshot) {
+        eprintln!("warning: failed to write world snapshot: {}", err);
+    }
+    if let Err(err) = save_world_snapshot_tick(&snapshot) {
+        eprintln!("warning: failed to write tick snapshot: {}", err);
+    }
+}
+
+fn persist_action_stats(requests: &[ActionRequest], tick: &TickResult) {
+    let mut store = match harimu::load_action_stats() {
+        Ok(s) => s,
+        Err(err) => {
+            eprintln!("warning: failed to load action stats: {}", err);
+            return;
+        }
+    };
+
+    for req in requests {
+        let rejected = tick
+            .rejections
+            .iter()
+            .any(|r| r.request.agent_id == req.agent_id && r.request.action == req.action);
+        if rejected {
+            continue;
+        }
+        record_successful_actions(&mut store, req.agent_id, std::iter::once(req.action));
+    }
+
+    if let Err(err) = save_action_stats(&store) {
+        eprintln!("warning: failed to save action stats: {}", err);
+    }
+}
+
+fn print_action_summary() -> Result<(), String> {
+    let store = harimu::load_action_stats().map_err(|e| e.to_string())?;
+    if store.per_agent.is_empty() {
+        println!("No action stats recorded.");
+        return Ok(());
+    }
+
+    println!("Action summary per agent:");
+    for (agent, stats) in store.per_agent.iter() {
+        println!(
+            " - agent {} | move={} scan={} build={} harvest={} reproduce={} idle={}",
+            agent,
+            stats.move_count,
+            stats.scan_count,
+            stats.build_count,
+            stats.harvest_count,
+            stats.reproduce_count,
+            stats.idle_count
+        );
+    }
+    Ok(())
 }
 
 fn print_tick(tick: &TickResult, vm: &Vm, agent_id: AgentId) {
@@ -714,7 +834,7 @@ fn print_tick(tick: &TickResult, vm: &Vm, agent_id: AgentId) {
     );
 
     for event in &tick.events {
-        println!(" - {}", describe_event(event));
+        println!(" - {}", describe_event(vm, event));
     }
 
     if !tick.rejections.is_empty() {
@@ -722,17 +842,19 @@ fn print_tick(tick: &TickResult, vm: &Vm, agent_id: AgentId) {
         for rejection in &tick.rejections {
             println!(
                 " - agent {} action {:?}: {:?}",
-                rejection.request.agent_id, rejection.request.action, rejection.error
+                agent_label(vm, rejection.request.agent_id),
+                rejection.request.action,
+                rejection.error
             );
         }
     }
 
     if let Some(agent) = vm.world().agent(agent_id) {
         println!(
-            "Agent {} (id {}) | qi={} | position=({}, {}, {}) | alive={} | age={}",
-            agent.name,
+            "Agent #{} | qi={} | transistors={} | position=({}, {}, {}) | alive={} | age={}",
             agent.id,
             agent.qi,
+            agent.transistors,
             agent.position.x,
             agent.position.y,
             agent.position.z,
@@ -749,7 +871,14 @@ fn print_tick(tick: &TickResult, vm: &Vm, agent_id: AgentId) {
     }
 }
 
-fn describe_event(event: &Event) -> String {
+fn agent_label(vm: &Vm, agent_id: AgentId) -> String {
+    vm.world()
+        .agent(agent_id)
+        .map(|a| format!("#{}", a.id))
+        .unwrap_or_else(|| format!("#{}", agent_id))
+}
+
+fn describe_event(vm: &Vm, event: &Event) -> String {
     match event {
         Event::TickStarted { tick } => format!("tick {} started", tick),
         Event::TickCompleted { tick } => format!("tick {} completed", tick),
@@ -759,34 +888,53 @@ fn describe_event(event: &Event) -> String {
             qi,
             position,
         } => format!(
-            "agent {} ({}) spawned with qi={} at ({}, {}, {})",
-            name, agent_id, qi, position.x, position.y, position.z
+            "agent #{} spawned (name={}) with qi={} at ({}, {}, {})",
+            agent_id, name, qi, position.x, position.y, position.z
         ),
         Event::QiSpent {
             agent_id,
             amount,
             action,
-        } => format!("agent {} spent {} qi on {}", agent_id, amount, action),
-        Event::QiGained {
+        } => format!(
+            "agent {} spent {} qi on {}",
+            agent_label(vm, *agent_id),
+            amount,
+            action
+        ),
+        Event::OreGained {
             agent_id,
+            ore,
             amount,
             source,
-        } => format!("agent {} gained {} qi from {}", agent_id, amount, source),
+        } => format!(
+            "agent {} gained {} {} from {}",
+            agent_label(vm, *agent_id),
+            amount,
+            ore,
+            source
+        ),
         Event::AgentMoved { agent_id, from, to } => format!(
             "agent {} moved from ({}, {}, {}) to ({}, {}, {})",
-            agent_id, from.x, from.y, from.z, to.x, to.y, to.z
+            agent_label(vm, *agent_id),
+            from.x,
+            from.y,
+            from.z,
+            to.x,
+            to.y,
+            to.z
         ),
-        Event::AgentDied {
-            agent_id,
-            reason,
-        } => format!("agent {} died: {:?}", agent_id, reason),
+        Event::AgentDied { agent_id, reason } => {
+            format!("agent {} died: {:?}", agent_label(vm, *agent_id), reason)
+        }
         Event::AgentReproduced {
             parent_a,
             parent_b,
             child_id,
         } => format!(
             "agents {} and {} reproduced; child={}",
-            parent_a, parent_b, child_id
+            agent_label(vm, *parent_a),
+            agent_label(vm, *parent_b),
+            agent_label(vm, *child_id)
         ),
         Event::StructureBuilt {
             agent_id,
@@ -795,10 +943,41 @@ fn describe_event(event: &Event) -> String {
             structure_id,
         } => format!(
             "agent {} built {} structure {} at ({}, {}, {})",
-            agent_id, kind, structure_id, position.x, position.y, position.z
+            agent_label(vm, *agent_id),
+            kind,
+            structure_id,
+            position.x,
+            position.y,
+            position.z
+        ),
+        Event::OreNodeHarvested {
+            agent_id,
+            ore,
+            source_id,
+            amount,
+            remaining,
+        } => format!(
+            "agent {} harvested {} {} from node {} (remaining={})",
+            agent_label(vm, *agent_id),
+            amount,
+            ore,
+            source_id,
+            remaining
+        ),
+        Event::OreNodeDrained {
+            ore,
+            source_id,
+            position,
+        } => format!(
+            "{} node {} drained at ({}, {}, {})",
+            ore, source_id, position.x, position.y, position.z
         ),
         Event::ActionObserved { agent_id, action } => {
-            format!("agent {} observed action {}", agent_id, action)
+            format!(
+                "agent {} observed action {}",
+                agent_label(vm, *agent_id),
+                action
+            )
         }
         Event::ScanReport {
             agent_id,
@@ -807,8 +986,8 @@ fn describe_event(event: &Event) -> String {
             nearby_qi_sources,
             nearby_structures,
         } => format!(
-            "agent {} scan at ({}, {}, {}) qi={} | qi_sources={} | structures={}",
-            agent_id,
+            "agent {} scan at ({}, {}, {}) qi={} | ore_sources={} | structures={}",
+            agent_label(vm, *agent_id),
             position.x,
             position.y,
             position.z,
@@ -825,34 +1004,180 @@ fn agent_counters(vm: &Vm, agent_id: AgentId) -> (usize, usize) {
     for event in vm.world().events() {
         match event {
             Event::StructureBuilt { agent_id: a, .. } if *a == agent_id => structures += 1,
-            Event::AgentReproduced { parent_a, parent_b, .. } if *parent_a == agent_id || *parent_b == agent_id => {
-                offspring += 1
-            }
+            Event::AgentReproduced {
+                parent_a, parent_b, ..
+            } if *parent_a == agent_id || *parent_b == agent_id => offspring += 1,
             _ => {}
         }
     }
     (structures, offspring)
 }
-#[derive(Subcommand)]
-pub enum WalletCommand {
-    /// Create a new wallet (random address)
-    Create,
-    /// Check balance for a wallet
-    Balance {
-        /// Wallet address (defaults to first wallet if omitted)
-        #[arg(long)]
-        address: Option<String>,
-    },
-    /// Transfer Qi between wallets
-    Transfer {
-        /// Sender address
-        #[arg(long)]
-        from: String,
-        /// Recipient address
-        #[arg(long)]
-        to: String,
-        /// Amount of Qi to transfer
-        #[arg(long)]
-        amount: harimu::Qi,
-    },
+
+fn launch_background_start(
+    agent: Option<String>,
+    qi: harimu::Qi,
+    position: Position,
+    ticks: Option<u64>,
+    brain: BrainMode,
+    llm_host: String,
+    llm_model: String,
+    llm_timeout_ms: u64,
+    llm_provider: LlmProvider,
+    llm_api_key: Option<String>,
+    tick_rate: Option<f64>,
+    delay_ms: u64,
+    actions: Vec<ActionArg>,
+) -> Result<(), String> {
+    let exe = env::current_exe().map_err(|e| format!("current_exe: {}", e))?;
+    let mut args = render_start_args(
+        agent.clone(),
+        qi,
+        position,
+        ticks,
+        brain,
+        llm_host,
+        llm_model,
+        llm_timeout_ms,
+        llm_provider,
+        llm_api_key.clone(),
+        tick_rate,
+        delay_ms,
+        &actions,
+    );
+    args.push("--background-child".into());
+
+    let child = std::process::Command::new(exe)
+        .args(&args)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .map_err(|e| format!("failed to spawn background process: {}", e))?;
+
+    let pid_path = PathBuf::from(PID_FILE);
+    if let Some(parent) = pid_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    fs::write(&pid_path, format!("{}", child.id()))
+        .map_err(|e| format!("failed to write pid file {}: {}", pid_path.display(), e))?;
+
+    println!(
+        "Started background agent loop (pid={}). Stop with `harimu stop`.",
+        child.id()
+    );
+    Ok(())
+}
+
+fn render_start_args(
+    agent: Option<String>,
+    qi: harimu::Qi,
+    position: Position,
+    ticks: Option<u64>,
+    brain: BrainMode,
+    llm_host: String,
+    llm_model: String,
+    llm_timeout_ms: u64,
+    llm_provider: LlmProvider,
+    llm_api_key: Option<String>,
+    tick_rate: Option<f64>,
+    delay_ms: u64,
+    actions: &[ActionArg],
+) -> Vec<String> {
+    let mut args = Vec::new();
+    args.push("start".into());
+    if let Some(agent) = agent {
+        args.push("--agent".into());
+        args.push(agent);
+    }
+    args.push("--qi".into());
+    args.push(format!("{}", qi));
+    args.push("--position".into());
+    args.push(format!("{},{},{}", position.x, position.y, position.z));
+    if let Some(t) = ticks {
+        args.push("--ticks".into());
+        args.push(format!("{}", t));
+    }
+    args.push("--llm-host".into());
+    args.push(llm_host);
+    args.push("--llm-model".into());
+    args.push(llm_model);
+    args.push("--llm-timeout-ms".into());
+    args.push(format!("{}", llm_timeout_ms));
+    if let Some(key) = llm_api_key {
+        args.push("--llm-api-key".into());
+        args.push(key);
+    }
+    if let Some(rate) = tick_rate {
+        args.push("--tick-rate".into());
+        args.push(rate.to_string());
+    } else {
+        args.push("--delay-ms".into());
+        args.push(delay_ms.to_string());
+    }
+
+    args.push("--brain".into());
+    args.push(brain_to_arg(brain).into());
+    args.push("--llm-provider".into());
+    args.push(llm_provider_to_arg(llm_provider).into());
+
+    for action in actions {
+        args.push("--action".into());
+        args.push(render_action_arg(action));
+    }
+
+    args
+}
+
+fn brain_to_arg(brain: BrainMode) -> &'static str {
+    match brain {
+        BrainMode::Loop => "loop",
+        BrainMode::Llm => "llm",
+    }
+}
+
+fn llm_provider_to_arg(provider: LlmProvider) -> &'static str {
+    match provider {
+        LlmProvider::Ollama => "ollama",
+        LlmProvider::Openai => "openai",
+    }
+}
+
+fn render_action_arg(arg: &ActionArg) -> String {
+    match arg {
+        ActionArg::Scan => "scan".into(),
+        ActionArg::Idle => "idle".into(),
+        ActionArg::Move { dx, dy, dz } => format!("move:{},{},{}", dx, dy, dz),
+        ActionArg::Reproduce { partner } => format!("reproduce:{}", partner),
+        ActionArg::BuildStructure { kind } => format!("build:{}", kind),
+        ActionArg::HarvestOre { ore, source_id } => {
+            if *source_id > 0 {
+                format!("harvest:{},{}", ore, source_id)
+            } else {
+                format!("harvest:{}", ore)
+            }
+        }
+    }
+}
+
+fn try_kill_background_process() {
+    let pid_path = PathBuf::from(PID_FILE);
+    let pid_str = match fs::read_to_string(&pid_path) {
+        Ok(s) => s,
+        Err(_) => return,
+    };
+    let pid: u32 = match pid_str.trim().parse() {
+        Ok(p) => p,
+        Err(_) => return,
+    };
+
+    let status = std::process::Command::new("kill")
+        .arg(format!("{}", pid))
+        .status();
+    match status {
+        Ok(s) if s.success() => {
+            println!("Stopped background process pid={}", pid);
+            let _ = fs::remove_file(pid_path);
+        }
+        Ok(_) => eprintln!("warning: failed to stop background pid {}", pid),
+        Err(_) => {}
+    }
 }

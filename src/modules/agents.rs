@@ -3,15 +3,23 @@ use std::fs;
 use std::io;
 use std::path::PathBuf;
 
-use serde::{Deserialize, Serialize};
-use rand::rngs::OsRng;
 use rand::RngCore;
+use rand::rngs::OsRng;
+use serde::{Deserialize, Serialize};
+
+use crate::modules::vm::DEFAULT_MAX_AGENT_AGE;
+
+fn default_max_age() -> u64 {
+    DEFAULT_MAX_AGENT_AGE
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AgentProfile {
     pub id: String,
     pub qi: u64,
     pub companions: u32,
+    #[serde(default = "default_max_age")]
+    pub max_age: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -79,6 +87,7 @@ pub fn create_agent(store: &mut AgentStore, id: String) -> Result<AgentProfile, 
         id: address.clone(),
         qi: 0,
         companions: 0,
+        max_age: DEFAULT_MAX_AGENT_AGE,
     };
     store.agents.insert(address.clone(), profile.clone());
     Ok(profile)
@@ -93,6 +102,15 @@ pub fn infuse(store: &mut AgentStore, id: &str, amount: u64) -> Result<(), Strin
     Ok(())
 }
 
+pub fn extend_life(store: &mut AgentStore, id: &str, max_age: u64) -> Result<(), String> {
+    let agent = store
+        .agents
+        .get_mut(id)
+        .ok_or_else(|| format!("agent {} not found", id))?;
+    agent.max_age = max_age.max(1);
+    Ok(())
+}
+
 pub fn spawn_companion(store: &mut AgentStore, id: &str) -> Result<(), String> {
     let agent = store
         .agents
@@ -100,6 +118,14 @@ pub fn spawn_companion(store: &mut AgentStore, id: &str) -> Result<(), String> {
         .ok_or_else(|| format!("agent {} not found", id))?;
     agent.companions = agent.companions.saturating_add(1);
     Ok(())
+}
+
+pub fn remove_agent(store: &mut AgentStore, id: &str) -> Result<(), String> {
+    if store.agents.remove(id).is_some() {
+        Ok(())
+    } else {
+        Err(format!("agent {} not found", id))
+    }
 }
 
 pub fn vote(store: &mut AgentStore, action_id: &str, direction: VoteDirection) {
@@ -110,7 +136,12 @@ pub fn vote(store: &mut AgentStore, action_id: &str, direction: VoteDirection) {
     }
 }
 
-pub fn transfer_qi(store: &mut AgentStore, from: &str, to: &str, amount: u64) -> Result<(), String> {
+pub fn transfer_qi(
+    store: &mut AgentStore,
+    from: &str,
+    to: &str,
+    amount: u64,
+) -> Result<(), String> {
     if amount == 0 || from == to {
         return Ok(());
     }

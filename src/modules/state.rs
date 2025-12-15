@@ -78,7 +78,11 @@ pub fn save_state(state: &RuntimeState) -> io::Result<()> {
     Ok(())
 }
 
-pub fn set_status(status: Status, last_tick: u64, message: Option<String>) -> io::Result<RuntimeState> {
+pub fn set_status(
+    status: Status,
+    last_tick: u64,
+    message: Option<String>,
+) -> io::Result<RuntimeState> {
     let mut state = load_state()?.unwrap_or_default();
     state.status = status;
     state.last_tick = last_tick;
