@@ -225,11 +225,17 @@ pub fn plan_with_llm(
 ) -> LlmDecision {
     let summary = summarize_world(vm, agent_id);
     let observations = observe_world(vm, agent_id);
+    let last_feedback = memory
+        .notes
+        .last()
+        .cloned()
+        .unwrap_or_else(|| "none yet".into());
     let memory_notes = memory_context(memory, MEMORY_LIMIT);
     let prompt = build_prompt(
         &summary,
         &observations,
         &memory_notes,
+        &last_feedback,
         DEFAULT_AGENT_GOAL,
         candidates,
         vm,
@@ -441,6 +447,7 @@ fn build_prompt(
     summary: &str,
     observations: &[String],
     memory_notes: &[String],
+    last_feedback: &str,
     goal: &str,
     candidates: &[ActionArg],
     _vm: &Vm,
@@ -464,6 +471,7 @@ fn build_prompt(
         "state": summary,
         "observations": observations,
         "memory": memory_notes,
+        "last_feedback": last_feedback,
         "actions": actions,
         "action_schema": action_schema,
         "structure_kinds": structure_kinds,

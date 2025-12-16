@@ -461,28 +461,61 @@ fn run_loop(
     delay: Duration,
     vm: &mut Vm,
 ) -> Result<(), String> {
+    #[derive(Default)]
+    struct FeedbackState {
+        idx: usize,
+        last_failed: bool,
+    }
+    let mut feedback: HashMap<AgentId, FeedbackState> = agent_ids
+        .iter()
+        .map(|id| (*id, FeedbackState::default()))
+        .collect();
+
     let mut remaining = ticks;
     loop {
         let next_tick = vm.world().tick() + 1;
         let mut requests = Vec::new();
         for agent_id in agent_ids {
             let partner = agent_ids.iter().find(|&&id| id != *agent_id).copied();
-            requests.extend(build_requests(*agent_id, partner, action_cycle, next_tick));
+            let state = feedback.entry(*agent_id).or_default();
+            let base_action = action_cycle
+                .get(state.idx % action_cycle.len())
+                .cloned()
+                .unwrap_or(ActionArg::Idle);
+            let chosen = if state.last_failed {
+                reactive_fallback(&base_action)
+            } else {
+                base_action
+            };
+            let mut reqs = build_requests(*agent_id, partner, &[chosen], next_tick);
+            requests.append(&mut reqs);
         }
 
         let tick = vm.step(&requests);
         println!("Tick {}", tick.tick);
-    for agent_id in agent_ids {
-        print_tick(&tick, vm, *agent_id);
-    }
-    persist_structures(&tick.events)?;
-    persist_world_view(vm);
-    persist_action_stats(&requests, &tick);
+        for agent_id in agent_ids {
+            print_tick(&tick, vm, *agent_id);
+        }
+        persist_structures(&tick.events)?;
+        persist_world_view(vm);
+        persist_action_stats(&requests, &tick);
 
-    state::set_status(
-        Status::Running,
-        vm.world().tick(),
-        Some("agent loop running".into()),
+        for agent_id in agent_ids {
+            let state = feedback.entry(*agent_id).or_default();
+            let failed = tick
+                .rejections
+                .iter()
+                .any(|r| r.request.agent_id == *agent_id);
+            state.last_failed = failed;
+            if !failed {
+                state.idx = state.idx.saturating_add(1);
+            }
+        }
+
+        state::set_status(
+            Status::Running,
+            vm.world().tick(),
+            Some("agent loop running".into()),
         )
         .map_err(|e| e.to_string())?;
 
@@ -764,6 +797,20 @@ fn record_outcome(
     if memory.notes.len() > MEMORY_LIMIT {
         let drop = memory.notes.len() - MEMORY_LIMIT;
         memory.notes.drain(0..drop);
+    }
+}
+
+fn reactive_fallback(action: &ActionArg) -> ActionArg {
+    match action {
+        ActionArg::Move { .. } => ActionArg::Scan,
+        ActionArg::Scan => ActionArg::Idle,
+        ActionArg::BuildStructure { .. } => ActionArg::HarvestOre {
+            ore: OreKind::Qi,
+            source_id: 0,
+        },
+        ActionArg::HarvestOre { .. } => ActionArg::Scan,
+        ActionArg::Reproduce { .. } => ActionArg::Idle,
+        ActionArg::Idle => ActionArg::Scan,
     }
 }
 
